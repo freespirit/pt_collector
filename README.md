@@ -1,4 +1,4 @@
-[![CircleCI](https://circleci.com/gh/freespirit/pt_collector/tree/master.svg?style=svg)](https://circleci.com/gh/freespirit/pt_collector/tree/master)
+[![CircleCI](https://circleci.com/gh/freespirit/pt_collector.svg?style=svg)](https://circleci.com/gh/freespirit/pt_collector)
 
 # About
 
