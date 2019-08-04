@@ -3,7 +3,6 @@ extern crate serde;
 extern crate reqwest;
 extern crate url;
 
-use reqwest::Error;
 use serde_json::Value;
 use url::{Url, ParseError};
 
@@ -53,24 +52,15 @@ impl FlickrCollector {
 
     /// Fetches a list of images that contain only ID and other metadata.
     /// No actual image data is downloaded.
-    ///
-    /// To get the image data use
-    /// ```
-    /// fetch_image()
-    ///
-    /// ```
     pub fn request_images(self) -> Vec<String> {
         let mut image_ids: Vec<String> = vec![];
 
         let url = self.build_search_url().expect("Failed to build search url");
 
-//        println!("{:#?}", url);
-
         let mut response = reqwest::get(url.as_str()).unwrap();
         let text = response.text().unwrap();
         let json: Value = serde_json::from_str(&text).unwrap();
         let flickr_response_json: FlickrResponseJson = serde_json::from_value(json).unwrap();
-//        println!("Response: {:?}", flickr_response_json);
         println!("Got response \"{}\". Found {} images.",
                  flickr_response_json.stat,
                  flickr_response_json.photos.total);
