@@ -5,6 +5,8 @@ extern crate url;
 
 use serde_json::Value;
 use url::{Url, ParseError};
+use std::io;
+use std::fs::File;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -81,6 +83,21 @@ impl FlickrCollector {
             _page = photos_response.page + 1;
             has_next_page = _page < photos_response.pages;
             sleep(Duration::from_secs(1)); //Flickr only allow 3600 requests per hour...
+
+            if all_photos.len() >= 1000 {
+                break;
+            }
+        }
+
+        for photo in all_photos {
+            let target = photo.url_o;
+            let mut response = reqwest::get(&target).unwrap();
+            let file_name = format!("tmp/{}.jpg", photo.id);
+            let mut tmp_file = File::create(&file_name).unwrap();
+
+            println!("Saving {} to {:?}...", photo.id, &file_name);
+            io::copy(&mut response, &mut tmp_file);
+            sleep(Duration::from_millis(1001))//Flickr only allow 3600 requests per hour... allow some buffer as well
         }
     }
 }
