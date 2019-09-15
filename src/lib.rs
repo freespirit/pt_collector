@@ -5,11 +5,14 @@ extern crate url;
 
 use serde_json::Value;
 use url::{Url, ParseError};
-
+use std::thread::sleep;
+use std::time::Duration;
 
 static FLICKR_ENDPOINT: &str = "https://api.flickr.com/";
 static FLICKR_PATH: &str = "/services/rest";
 static FLICKR_QUERY_METHOD: &str = "flickr.photos.search";
+
+//https://www.flickr.com/services/api/explore/flickr.photos.search
 
 pub struct FlickrCollector {
     api_key: String
@@ -18,15 +21,11 @@ pub struct FlickrCollector {
 #[derive(Deserialize, Debug)]
 struct Photo {
     id: String,
-    owner: String,
-    secret: String,
     server: String,
     farm: i32,
-    title: String,
     ispublic: i8,
-    isfriend: i8,
-    isfamily: i8,
-    tags: String
+    tags: String,
+    url_o: String
 }
 
 #[derive(Deserialize, Debug)]
@@ -35,13 +34,13 @@ struct Photos {
     pages: i32,
     perpage: i32,
     total: String,
-    photo: Vec<Photo>
+    photo: Vec<Photo>,
 }
 
 #[derive(Deserialize, Debug)]
 struct FlickrResponseJson {
     photos: Photos,
-    stat: String
+    stat: String,
 }
 
 impl FlickrCollector {
@@ -52,22 +51,48 @@ impl FlickrCollector {
 
     /// Fetches a list of images that contain only ID and other metadata.
     /// No actual image data is downloaded.
-    pub fn request_images(self) -> Vec<String> {
-        let mut image_ids: Vec<String> = vec![];
+    pub fn request_images(self) {
+        let mut all_photos: Vec<Photo> = vec![];
 
-        let url = self.build_search_url().expect("Failed to build search url");
+        let mut _page = 0;
+        let mut has_next_page = true;
+        let api_key = &self.api_key;
 
-        let mut response = reqwest::get(url.as_str()).unwrap();
-        let text = response.text().unwrap();
-        let json: Value = serde_json::from_str(&text).unwrap();
-        let flickr_response_json: FlickrResponseJson = serde_json::from_value(json).unwrap();
-        println!("Got response \"{}\". Found {} images.",
-                 flickr_response_json.stat,
-                 flickr_response_json.photos.total);
+        while has_next_page {
+            let request_builder = FlickrRequestBuilder::new(api_key.clone(), _page);
+            let url = request_builder.build_search_url().expect("Failed to build search url");
+            let mut response = reqwest::get(url.as_str()).unwrap();
+            let text = response.text().unwrap();
+            let json: Value = serde_json::from_str(&text).unwrap();
+            let flickr_response_json: FlickrResponseJson = serde_json::from_value(json).unwrap();
 
-        let photos: Vec<Photo> = flickr_response_json.photos.photo;
+            let photos_response = flickr_response_json.photos;
+            println!("Got response \"{}\". Page: {}/{}.",
+                     flickr_response_json.stat,
+                     photos_response.page,
+                     photos_response.pages);
+//            println!("Got response: {:#?}", photos_response);
 
-        image_ids
+            let _photos: Vec<Photo> = photos_response.photo;
+            all_photos.extend(_photos);
+
+            println!("\tphotos collections: {}/{}", all_photos.len(), all_photos.capacity());
+
+            _page = photos_response.page + 1;
+            has_next_page = _page < photos_response.pages;
+            sleep(Duration::from_secs(1)); //Flickr only allow 3600 requests per hour...
+        }
+    }
+}
+
+struct FlickrRequestBuilder {
+    api_key: String,
+    page: i32,
+}
+
+impl FlickrRequestBuilder {
+    fn new(api_key: String, page: i32) -> FlickrRequestBuilder {
+        FlickrRequestBuilder { api_key, page }
     }
 
     fn build_search_url(self) -> Result<Url, ParseError> {
@@ -85,7 +110,9 @@ impl FlickrCollector {
         query.push_str(&format!("&{}", &make_query_param("license", "4")));
         query.push_str(&format!("&{}", &make_query_param("format", "json")));
         query.push_str(&format!("&{}", &make_query_param("nojsoncallback", "1")));
-        query.push_str(&format!("&{}", &make_query_param("extras", "tags")));
+        query.push_str(&format!("&{}", &make_query_param("extras", "tags,url_o")));
+        query.push_str(&format!("&{}", &make_query_param("per_page", "500")));
+        query.push_str(&format!("&{}", &make_query_param("page", &format!("{}", self.page))));
 
 
         query
@@ -99,7 +126,7 @@ fn make_query_param(key: &str, value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::{FlickrCollector, FLICKR_PATH, FLICKR_QUERY_METHOD};
+    use crate::{FlickrCollector, FLICKR_PATH, FLICKR_QUERY_METHOD, FlickrRequestBuilder};
     use super::make_query_param;
     use std::borrow::Cow;
 
@@ -114,8 +141,8 @@ mod tests {
 
     #[test]
     fn build_search_url() {
-        let collector = FlickrCollector::new(API_KEY);
-        let url = collector.build_search_url();
+        let request_builder = FlickrRequestBuilder::new(String::from(API_KEY), 0);
+        let url = request_builder.build_search_url();
 
         assert!(url.is_ok());
         let url = url.unwrap();
