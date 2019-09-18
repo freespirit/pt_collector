@@ -5,7 +5,7 @@ extern crate url;
 
 use serde_json::Value;
 use url::{Url, ParseError};
-use std::io;
+use std::io::{Read, Write};
 use std::fs::File;
 use std::thread::sleep;
 use std::time::Duration;
@@ -20,14 +20,19 @@ pub struct FlickrCollector {
     api_key: String
 }
 
+pub struct Photo {
+    original_url: String,
+    bytes: Vec<u8>,
+}
+
 #[derive(Deserialize, Debug)]
-struct Photo {
+struct FlickrPhoto {
     id: String,
     server: String,
     farm: i32,
     ispublic: i8,
     tags: String,
-    url_o: String
+    url_o: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -36,7 +41,7 @@ struct Photos {
     pages: i32,
     perpage: i32,
     total: String,
-    photo: Vec<Photo>,
+    photo: Vec<FlickrPhoto>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -54,7 +59,7 @@ impl FlickrCollector {
     /// Fetches a list of images that contain only ID and other metadata.
     /// No actual image data is downloaded.
     pub fn request_images(self) {
-        let mut all_photos: Vec<Photo> = vec![];
+        let mut all_photos: Vec<FlickrPhoto> = vec![];
 
         let mut _page = 0;
         let mut has_next_page = true;
@@ -75,7 +80,7 @@ impl FlickrCollector {
                      photos_response.pages);
 //            println!("Got response: {:#?}", photos_response);
 
-            let _photos: Vec<Photo> = photos_response.photo;
+            let _photos: Vec<FlickrPhoto> = photos_response.photo;
             all_photos.extend(_photos);
 
             println!("\tphotos collections: {}/{}", all_photos.len(), all_photos.capacity());
@@ -92,13 +97,34 @@ impl FlickrCollector {
         for photo in all_photos {
             let target = photo.url_o;
             let mut response = reqwest::get(&target).unwrap();
-            let file_name = format!("tmp/{}.jpg", photo.id);
-            let mut tmp_file = File::create(&file_name).unwrap();
+            let mut photo_bytes: Vec<u8> = vec![];
 
-            println!("Saving {} to {:?}...", photo.id, &file_name);
-            io::copy(&mut response, &mut tmp_file);
-            sleep(Duration::from_millis(1001))//Flickr only allow 3600 requests per hour... allow some buffer as well
+            let result = response.read_to_end(&mut photo_bytes);
+
+            match result {
+                Err(_) => println!("Failed to read response {:#?}", response),
+                Ok(_) => {
+                    let p = Photo { original_url: target, bytes: photo_bytes };
+                    self.save_photo(&p, &photo.id);
+                }
+            }
+
+            sleep(Duration::from_millis(1001));//Flickr only allow 3600 requests per hour... allow some buffer as well
         }
+    }
+
+    fn save_photo(&self, photo: &Photo, id: &String) {
+        let file_name = format!("tmp/{}.jpg", id);
+        print!("Saving {} to {:?}...", id, &file_name);
+
+        let mut tmp_file = File::create(&file_name).unwrap();
+        let result = tmp_file.write_all(&photo.bytes);
+        match result {
+            Err(e) => print!(" error {}!", e),
+            Ok(_) => print!(" success!")
+        }
+
+        println!()
     }
 }
 
