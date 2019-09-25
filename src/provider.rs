@@ -92,7 +92,9 @@ pub mod flickr_photos_provider {
                 Photo {
                     original_url: flickr_photo.url_o.clone(),
                     bytes: None,
-                    tags: vec![], //TODO
+                    tags:flickr_photo.tags.split_whitespace()
+                        .map(|str| String::from(str))
+                        .collect()
                 }
             }).collect()
         }

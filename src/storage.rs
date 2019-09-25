@@ -13,9 +13,9 @@ pub mod local_storage {
 
     impl LocalPhotoStorage {
         pub fn new(path: &String) -> Result<LocalPhotoStorage> {
-            let dir = fs::create_dir_all(path)?;
-            let lps = LocalPhotoStorage{dir: path.clone() };
-            Ok(lps)
+            let local_storage = LocalPhotoStorage{dir: path.clone() };
+            fs::create_dir_all(path)
+                .and(Ok(local_storage))
         }
     }
 

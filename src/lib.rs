@@ -30,7 +30,10 @@ impl Collector {
     pub fn collect(&mut self) {
         let mut photos = self.build_images_list();
 
-        for photo in photos.iter_mut() {
+        let filtered_photos = photos.iter_mut()
+            .filter(|photo| self.filter_photo(photo));
+
+        for photo in filtered_photos {
             self.get_photo_data(photo);
             self.save_photo(photo);
         }
@@ -46,5 +49,12 @@ impl Collector {
 
     fn save_photo(&self, photo: &Photo) {
         self.photo_storage.save_photo(photo);
+    }
+
+    fn filter_photo(&self, photo: &Photo) -> bool {
+        if photo.tags.is_empty() {
+            println!("No tags");
+        }
+        !photo.tags.is_empty()
     }
 }
