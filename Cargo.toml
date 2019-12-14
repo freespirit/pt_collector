@@ -10,5 +10,5 @@ edition = "2018"
 url = "2.0.0"
 reqwest = "0.9.19"
 serde = { version = "1.0.98", features = ["derive"] }
-serde_json = "1.0.40"
+serde_json = "1.0.44"
 
